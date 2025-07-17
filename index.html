@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lez Relationship Chart</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 0; overflow: hidden; background: #fff; }
+    svg { width: 100vw; height: 100vh; }
+    .link { stroke-opacity: 0.6; }
+    .node circle { stroke: #fff; stroke-width: 1.5px; cursor: pointer; }
+    .tooltip {
+      position: absolute;
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 4px 8px;
+      font-size: 12px;
+      pointer-events: none;
+      box-shadow: 2px 2px 6px rgba(0,0,0,0.1);
+    }
+    .legend {
+      font-size: 14px;
+      font-family: sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    const nodes = [
+      { id: "Nuc" },
+      { id: "Edina" },
+      { id: "Merdžan" },
+      { id: "Josipa" },
+      { id: "Matilda" },
+      { id: "Marta" },
+      { id: "Martina" },
+      { id: "Tanja" },
+      { id: "Milkovich" }
+    ];
+
+    const links = [
+      { source: "Nuc", target: "Merdžan", type: "crush" },
+      { source: "Edina", target: "Josipa", type: "ex" },
+      { source: "Matilda", target: "Tanja", type: "fling" },
+      { source: "Martina", target: "Milkovich", type: "drama" },
+      { source: "Marta", target: "Nuc", type: "besties" },
+      { source: "Josipa", target: "Matilda", type: "ex" },
+      { source: "Tanja", target: "Edina", type: "crush" },
+      { source: "Milkovich", target: "Merdžan", type: "fling" },
+      { source: "Martina", target: "Josipa", type: "drama" },
+      { source: "Merdžan", target: "Matilda", type: "besties" }
+    ];
+
+    const linkColor = {
+      ex: "#e74c3c",
+      crush: "#f39c12",
+      besties: "#2ecc71",
+      fling: "#9b59b6",
+      drama: "#3498db"
+    };
+
+    const svg = d3.select("body").append("svg");
+    const defs = svg.append("defs");
+
+    defs.append("marker")
+      .attr("id", "arrow")
+      .attr("viewBox", "0 -5 10 10")
+      .attr("refX", 20)
+      .attr("refY", 0)
+      .attr("markerWidth", 6)
+      .attr("markerHeight", 6)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("d", "M0,-5L10,0L0,5")
+      .attr("fill", "#666");
+
+    const tooltip = d3.select("body").append("div").attr("class", "tooltip").style("opacity", 0);
+
+    const simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).id(d => d.id).distance(120))
+      .force("charge", d3.forceManyBody().strength(-500))
+      .force("center", d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2));
+
+    const link = svg.append("g")
+      .attr("stroke-width", 2)
+      .selectAll("line")
+      .data(links)
+      .join("line")
+      .attr("stroke", d => linkColor[d.type] || "#999")
+      .attr("marker-end", "url(#arrow)")
+      .on("mouseover", (event, d) => {
+        tooltip.transition().duration(200).style("opacity", .9);
+        tooltip.html(`${d.source.id} → ${d.target.id} (${d.type} 💘)`) 
+          .style("left", (event.pageX + 5) + "px")
+          .style("top", (event.pageY - 28) + "px");
+      })
+      .on("mouseout", () => tooltip.transition().duration(500).style("opacity", 0));
+
+    const node = svg.append("g")
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 1.5)
+      .selectAll("circle")
+      .data(nodes)
+      .join("circle")
+      .attr("r", 14)
+      .attr("fill", "#3498db")
+      .on("click", (event, d) => {
+        const outgoing = links.filter(l => l.source.id === d.id);
+        const incoming = links.filter(l => l.target.id === d.id);
+        let html = `<strong>${d.id}</strong><br/>`;
+        if (outgoing.length === 0 && incoming.length === 0) {
+          html += "Nema zabilježenih odnosa 🙃";
+        } else {
+          if (outgoing.length > 0) {
+            html += "<em>Ona je imala:</em><ul>" + outgoing.map(l => `<li>${l.type} s ${l.target.id}</li>`).join("") + "</ul>";
+          }
+          if (incoming.length > 0) {
+            html += "<em>S njom su imali:</em><ul>" + incoming.map(l => `<li>${l.type} od ${l.source.id}</li>`).join("") + "</ul>";
+          }
+        }
+        tooltip.transition().duration(200).style("opacity", .95);
+        tooltip.html(html)
+          .style("left", (event.pageX + 5) + "px")
+          .style("top", (event.pageY - 28) + "px");
+      })
+      .on("mouseout", () => tooltip.transition().duration(800).style("opacity", 0))
+      .call(drag(simulation));
+
+    const labels = svg.append("g")
+      .selectAll("text")
+      .data(nodes)
+      .join("text")
+      .text(d => d.id)
+      .attr("font-size", "12px")
+      .attr("dx", 16)
+      .attr("dy", 4);
+
+    svg.append("g")
+      .attr("class", "legend")
+      .attr("transform", "translate(20,20)")
+      .selectAll("text")
+      .data(Object.entries(linkColor))
+      .join("g")
+      .attr("transform", (d, i) => `translate(0, ${i * 20})`)
+      .each(function([key, color]) {
+        d3.select(this).append("rect")
+          .attr("x", 0)
+          .attr("width", 14)
+          .attr("height", 14)
+          .attr("fill", color);
+        d3.select(this).append("text")
+          .attr("x", 20)
+          .attr("y", 12)
+          .text(`${key.charAt(0).toUpperCase() + key.slice(1)}`);
+      });
+
+    simulation.on("tick", () => {
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+      node
+        .attr("cx", d => d.x)
+        .attr("cy", d => d.y);
+
+      labels
+        .attr("x", d => d.x)
+        .attr("y", d => d.y);
+    });
+
+    function drag(simulation) {
+      function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      }
+
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+
+      function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+
+      return d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended);
+    }
+  </script>
+</body>
+</html>
